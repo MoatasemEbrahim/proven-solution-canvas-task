@@ -3,6 +3,7 @@
   "name": "2.jpg",
   "boxes": [
     {
+      "_id": "65674cc1287bddaee1a75e21",
       "points": [
         912,
         611,
@@ -13,6 +14,7 @@
       "class": "Date"
     },
     {
+      "_id": "65674cc1287bddaee1a75e22",
       "points": [
         964,
         285,
@@ -23,6 +25,7 @@
       "class": "Number"
     },
     {
+      "_id": "65674cc1287bddaee1a75e23",
       "points": [
         981,
         1006,
@@ -33,6 +36,7 @@
       "class": "Amount"
     },
     {
+      "_id": "65674cc1287bddaee1a75e24",
       "points": [
         934,
         162,
@@ -43,6 +47,7 @@
       "class": "Supplier"
     },
     {
+      "_id": "65674cc1287bddaee1a75e25",
       "points": [
         975,
         1080,
@@ -53,6 +58,7 @@
       "class": "Amount"
     },
     {
+      "_id": "65674cc1287bddaee1a75e26",
       "points": [
         527,
         222,
@@ -63,6 +69,7 @@
       "class": "Description"
     },
     {
+      "_id": "65674cc1287bddaee1a75e27",
       "points": [
         908,
         1346,

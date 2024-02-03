@@ -1,113 +1,165 @@
-import Image from "next/image";
+"use client";
+
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import data from "@/task-object.json";
+import debounce from "lodash.debounce";
+
+import { Box, ClassName } from "@/app/types/boxes";
+import { classes } from "@/app/utils/boxesCanvasHelpers";
 
 export default function Home() {
+  const [boxes] = useState<Box[]>(data.boxes as Box[]);
+  const [groupedBoxes, setGroupedBoxes] = useState<
+    Record<ClassName, Box[]> | Record<string, never>
+  >({});
+  const [image, setImage] = useState<HTMLImageElement | null>(null);
+  const [canvasDimensions, setCanvasDimensions] = useState<{
+    width: number;
+    height: number;
+    horizontalRenderRatio: number;
+    verticalRenderRatio: number;
+  }>({ width: 0, height: 0, horizontalRenderRatio: 0, verticalRenderRatio: 0 });
+
+  const backgroundCanvasRef = useRef<HTMLCanvasElement>(null);
+  const boxesCanvasRef = useRef<HTMLCanvasElement>(null);
+
+  const calculateCanvasSize = useMemo(
+    () =>
+      debounce((renderedImage: HTMLImageElement | null) => {
+        if (!renderedImage) return;
+
+        const isMobile = window.innerWidth < 640;
+
+        let width = window.innerWidth - 250;
+        if (isMobile) {
+          width = window.innerWidth;
+        }
+        const height = (width / renderedImage.width) * renderedImage.height;
+
+        const horizontalRenderRatio = width / (renderedImage.width || 1);
+        const verticalRenderRatio = height / (renderedImage.height || 1);
+
+        setCanvasDimensions({
+          width,
+          height,
+          horizontalRenderRatio,
+          verticalRenderRatio,
+        });
+      }, 100),
+    []
+  );
+
+  // calculate canvases dimentiones for the first time only after image is loaded successfully
+  useEffect(() => {
+    if (image) {
+      calculateCanvasSize(image);
+    }
+  }, [image]);
+
+  // re-calculate canvases dimentiones on resizing the screen
+  useEffect(() => {
+    const img = new Image();
+    img.src = data.base64;
+    img.onload = () => {
+      setImage(img);
+    };
+
+    const resizeHandler = () => {
+      calculateCanvasSize(img);
+    };
+    window.addEventListener("resize", resizeHandler);
+    return () => {
+      window.removeEventListener("resize", resizeHandler);
+    };
+  }, []);
+
+  // draw background image in backgroundCanvas
+  useEffect(() => {
+    if (image) {
+      const backgroundCanvas = backgroundCanvasRef.current;
+      if (backgroundCanvas) {
+        const backgroundCtx = backgroundCanvas.getContext("2d");
+        if (backgroundCtx) {
+          backgroundCanvas.width = canvasDimensions.width;
+          backgroundCanvas.height = canvasDimensions.height;
+          backgroundCtx.drawImage(image, 0, 0, canvasDimensions.width, canvasDimensions.height);
+        }
+      }
+    }
+  }, [canvasDimensions]);
+
+  // draw boxes in boxesCanvas
+  useEffect(() => {
+    const boxesCanvas = boxesCanvasRef.current;
+    if (boxesCanvas && canvasDimensions.width > 0) {
+      boxesCanvas.width = canvasDimensions.width;
+      boxesCanvas.height = canvasDimensions.height;
+      const boxesCtx = boxesCanvas.getContext("2d");
+      if (boxesCtx) {
+        boxes.forEach((box) => {
+          const {
+            text,
+            points: [x1, y1, x2, y2],
+          } = box;
+          const width = x2 - x1;
+          const height = y2 - y1;
+
+          boxesCtx.fillStyle = classes[box.class];
+          const { horizontalRenderRatio, verticalRenderRatio } = canvasDimensions;
+          boxesCtx.fillRect(
+            x1 * horizontalRenderRatio,
+            y1 * verticalRenderRatio,
+            width * horizontalRenderRatio,
+            height * verticalRenderRatio
+          );
+
+          const textX = (x1 + 10) * horizontalRenderRatio;
+          const textY = (y1 + height / 1.25) * verticalRenderRatio;
+          boxesCtx.font = `${Math.max(14 * horizontalRenderRatio, 6)}px Arial`;
+          boxesCtx.fillStyle = "white";
+          boxesCtx.fillText(text, textX, textY, width - 10);
+        });
+      }
+    }
+  }, [boxes, canvasDimensions]);
+
+  useEffect(() => {
+    const groups = boxes.reduce((acc, box) => {
+      if (Object.hasOwn(acc, box.class)) {
+        return { ...acc, [box.class]: [...acc[box.class], box] };
+      } else {
+        return { ...acc, [box.class]: [box] };
+      }
+    }, {});
+    setGroupedBoxes(groups);
+  }, [boxes]);
+
   return (
-    <main className="flex min-h-screen flex-col items-center justify-between p-24">
-      <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm lg:flex">
-        <p className="fixed left-0 top-0 flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl dark:border-neutral-800 dark:bg-zinc-800/30 dark:from-inherit lg:static lg:w-auto  lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
-          Get started by editing&nbsp;
-          <code className="font-mono font-bold">src/app/page.tsx</code>
-        </p>
-        <div className="fixed bottom-0 left-0 flex h-48 w-full items-end justify-center bg-gradient-to-t from-white via-white dark:from-black dark:via-black lg:static lg:h-auto lg:w-auto lg:bg-none">
-          <a
-            className="pointer-events-none flex place-items-center gap-2 p-8 lg:pointer-events-auto lg:p-0"
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            By{" "}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className="dark:invert"
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
-        </div>
+    <>
+      <div className="hidden sm:block h-screen absolute p-4">
+        {Object.entries(groupedBoxes).map(([className, boxes]) => (
+          <React.Fragment key={className}>
+            <h3 className="text-xl" style={{ color: classes[className as ClassName] }}>
+              {className}
+            </h3>
+            {boxes.map((box, i) => (
+              <button
+                className="m-2 border-2 block p-1"
+                key={`${className}-${box.text}-${i}`}
+                onClick={() => {}}
+              >
+                {box.text}
+              </button>
+            ))}
+          </React.Fragment>
+        ))}
       </div>
-
-      <div className="relative flex place-items-center before:absolute before:h-[300px] before:w-full sm:before:w-[480px] before:-translate-x-1/2 before:rounded-full before:bg-gradient-radial before:from-white before:to-transparent before:blur-2xl before:content-[''] after:absolute after:-z-20 after:h-[180px] after:w-full sm:after:w-[240px] after:translate-x-1/3 after:bg-gradient-conic after:from-sky-200 after:via-blue-200 after:blur-2xl after:content-[''] before:dark:bg-gradient-to-br before:dark:from-transparent before:dark:to-blue-700 before:dark:opacity-10 after:dark:from-sky-900 after:dark:via-[#0141ff] after:dark:opacity-40 before:lg:h-[360px] z-[-1]">
-        <Image
-          className="relative dark:drop-shadow-[0_0_0.3rem_#ffffff70] dark:invert"
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
-      </div>
-
-      <div className="mb-32 grid text-center lg:max-w-5xl lg:w-full lg:mb-0 lg:grid-cols-4 lg:text-left">
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Docs{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Find in-depth information about Next.js features and API.
-          </p>
-        </a>
-
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Learn{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Learn about Next.js in an interactive course with&nbsp;quizzes!
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Templates{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Explore starter templates for Next.js.
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Deploy{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50 text-balance`}>
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
-      </div>
-    </main>
+      <canvas ref={backgroundCanvasRef} className="absolute left-0 sm:left-[250px]">
+        Canvas is not supported
+      </canvas>
+      <canvas ref={boxesCanvasRef} className="absolute z-10 left-0 sm:left-[250px]">
+        Canvas is not supported
+      </canvas>
+    </>
   );
 }
